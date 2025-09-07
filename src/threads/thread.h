@@ -92,7 +92,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /**< List element. */
-
+    /** 唤醒队列 */
+    struct list_elem wait_elem;
+    int64_t wakeup_tick; // 唤醒时间
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /**< Page directory. */
@@ -100,6 +102,7 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /**< Detects stack overflow. */
+    
   };
 
 /** If false (default), use round-robin scheduler.
@@ -138,4 +141,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void add_to_sleep_list(struct thread *t);
+void remove_from_sleep_list(struct thread *t);
+void wakeup_threads(int64_t tick);
 #endif /**< threads/thread.h */

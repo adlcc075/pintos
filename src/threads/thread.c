@@ -37,6 +37,13 @@ static struct thread *initial_thread;
 /** Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/** sleep 队列 */
+static struct list sleep_list;
+
+/** 保护睡眠线程列表的锁 */
+static struct lock sleep_lock;
+
+
 /** Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -100,6 +107,20 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
+void add_to_sleep_list(struct thread *t)
+{
+  lock_acquire(&sleep_lock);
+  list_push_back(&sleep_list, &t->wait_elem);
+  lock_release(&sleep_lock);
+}
+
+void remove_from_sleep_list(struct thread *t)
+{
+  lock_acquire(&sleep_lock);
+  list_remove(&t->wait_elem);
+  lock_release(&sleep_lock);
+}
+
 /** Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
@@ -107,6 +128,8 @@ thread_start (void)
 {
   /* Create the idle thread. */
   struct semaphore idle_started;
+  list_init(&sleep_list);
+  lock_init(&sleep_lock);
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
 
@@ -579,6 +602,20 @@ allocate_tid (void)
   return tid;
 }
 
+void wakeup_threads(int64_t tick)
+{
+  struct thread *t;
+  struct list_elem *e;
+  for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e))
+  {
+    t = list_entry(e, struct thread, wait_elem);
+    if (t->wakeup_tick <= tick)
+    {
+      remove_from_sleep_list(t);
+      thread_unblock(t);
+    }
+  }
+}
 /** Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
