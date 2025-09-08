@@ -116,9 +116,7 @@ void add_to_sleep_list(struct thread *t)
 
 void remove_from_sleep_list(struct thread *t)
 {
-  lock_acquire(&sleep_lock);
   list_remove(&t->wait_elem);
-  lock_release(&sleep_lock);
 }
 
 /** Starts preemptive thread scheduling by enabling interrupts.
@@ -602,10 +600,28 @@ allocate_tid (void)
   return tid;
 }
 
+
+/**
+  enum intr_level old_level;
+
+  ASSERT (is_thread (t));
+
+  old_level = intr_disable ();
+  ASSERT (t->status == THREAD_BLOCKED);
+  list_push_back (&ready_list, &t->elem);
+  t->status = THREAD_READY;
+  intr_set_level (old_level);
+*/
+
 void wakeup_threads(int64_t tick)
 {
   struct thread *t;
   struct list_elem *e;
+
+  if (!lock_try_acquire(&sleep_lock))
+  {
+    return;
+  }
   for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e))
   {
     t = list_entry(e, struct thread, wait_elem);
@@ -615,6 +631,7 @@ void wakeup_threads(int64_t tick)
       thread_unblock(t);
     }
   }
+  lock_release(&sleep_lock);
 }
 /** Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
